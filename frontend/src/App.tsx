@@ -1,34 +1,34 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import './App.css'
 
 function App() {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [outputFormat, setOutputFormat] = useState<'pdf' | 'txt'>('pdf')
-  useEffect(() => {
-    console.log('Component mounted or updated')
-  }, [])
-
+  const [outputFormat, setOutputFormat] = useState<'pdf' | 'txt'>('txt')
+  
+  console.log('Rendering component, file state:', file ? `${file.name}` : 'null')
+  
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('File change event triggered', e.target.files)
-    const selectedFile = e.target.files?.[0]
-    if (selectedFile) {
+    console.log('File change event triggered')
+    
+    if (e.target.files && e.target.files.length > 0) {
+      const selectedFile = e.target.files[0]
       console.log('Selected file:', selectedFile.name, selectedFile.size)
+      
       if (!selectedFile.name.endsWith('.circom')) {
+        console.log('Invalid file type')
         setError('Please upload a .circom file')
         setFile(null)
         return
       }
       
-      const newFile = new File([selectedFile], selectedFile.name, {
-        type: selectedFile.type,
-        lastModified: selectedFile.lastModified
-      })
-      
-      setFile(newFile)
-      console.log('File state updated:', newFile.name)
+      console.log('Setting file state')
+      setFile(selectedFile)
       setError(null)
+      console.log('File state should be updated now')
+    } else {
+      console.log('No file selected')
     }
   }
 
