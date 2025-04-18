@@ -37,25 +37,26 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
         sarif_path = os.path.join(temp_dir, "output.sarif")
         
         try:
-            circomspect_paths = [
-                "circomspect",
-                "/usr/local/bin/circomspect",
-                "/root/.cargo/bin/circomspect"
-            ]
+            debug_info = {}
+            try:
+                debug_info["pwd"] = subprocess.run(["pwd"], capture_output=True, text=True, check=False).stdout.strip()
+                debug_info["ls_usr_local_bin"] = subprocess.run(["ls", "-la", "/usr/local/bin"], capture_output=True, text=True, check=False).stdout
+                debug_info["which_circomspect"] = subprocess.run(["which", "circomspect"], capture_output=True, text=True, check=False).stdout.strip()
+                debug_info["env_path"] = os.environ.get("PATH", "")
+            except Exception as e:
+                debug_info["error"] = str(e)
             
-            for circomspect_path in circomspect_paths:
-                try:
-                    result = subprocess.run(
-                        [circomspect_path, "--sarif-file", sarif_path, file_path],
-                        capture_output=True,
-                        text=True,
-                        check=True
-                    )
-                    break
-                except FileNotFoundError:
-                    if circomspect_path == circomspect_paths[-1]:
-                        raise
-                    continue
+            print(f"Debug info: {json.dumps(debug_info, indent=2)}")
+            
+            circomspect_path = "/usr/local/bin/circomspect"
+            print(f"Using circomspect at: {circomspect_path}")
+            
+            result = subprocess.run(
+                [circomspect_path, "--sarif-file", sarif_path, file_path],
+                capture_output=True,
+                text=True,
+                check=True
+            )
             
             if format.lower() == "txt":
                 try:
