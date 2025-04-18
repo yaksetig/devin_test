@@ -8,14 +8,17 @@ function App() {
   const [outputFormat, setOutputFormat] = useState<'pdf' | 'txt'>('pdf')
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('File change event triggered', e.target.files)
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
+      console.log('Selected file:', selectedFile.name, selectedFile.size)
       if (!selectedFile.name.endsWith('.circom')) {
         setError('Please upload a .circom file')
         setFile(null)
         return
       }
       setFile(selectedFile)
+      console.log('File state updated:', selectedFile.name)
       setError(null)
     }
   }
