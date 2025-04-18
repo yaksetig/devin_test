@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Query
+from fastapi import FastAPI, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 import os
@@ -26,7 +26,7 @@ async def healthz():
     return {"status": "ok"}
 
 @app.post("/analyze")
-async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf", description="Output format: pdf or txt")):
+async def analyze_circom(file: UploadFile = File(...), format: str = Form("pdf", description="Output format: pdf or txt")):
     temp_dir = tempfile.mkdtemp()
     try:
         file_path = os.path.join(temp_dir, file.filename)
