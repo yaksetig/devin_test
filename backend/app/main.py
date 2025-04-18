@@ -1,6 +1,6 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 import os
 import tempfile
 import subprocess
@@ -26,7 +26,7 @@ async def healthz():
     return {"status": "ok"}
 
 @app.post("/analyze")
-async def analyze_circom(file: UploadFile = File(...)):
+async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf", description="Output format: pdf or txt")):
     temp_dir = tempfile.mkdtemp()
     try:
         file_path = os.path.join(temp_dir, file.filename)
@@ -43,6 +43,67 @@ async def analyze_circom(file: UploadFile = File(...)):
                 text=True,
                 check=True
             )
+            
+            if format.lower() == "txt":
+                try:
+                    with open(sarif_path, 'r') as f:
+                        sarif_content = f.read()
+                    
+                    text_report = f"Circomspect Analysis Report for {file.filename}\n"
+                    text_report += "=" * 50 + "\n\n"
+                    
+                    sarif_data = json.loads(sarif_content)
+                    if 'runs' in sarif_data:
+                        for run in sarif_data['runs']:
+                            if 'tool' in run:
+                                tool_info = run['tool']
+                                text_report += f"Tool: {tool_info.get('driver', {}).get('name', 'Circomspect')}\n\n"
+                            
+                            if 'results' in run:
+                                results = run['results']
+                                text_report += f"Found {len(results)} issues:\n\n"
+                                
+                                if results:
+                                    for i, result in enumerate(results, 1):
+                                        level = result.get('level', 'warning')
+                                        rule_id = result.get('ruleId', 'unknown')
+                                        
+                                        location = "Unknown"
+                                        if 'locations' in result and result['locations']:
+                                            loc = result['locations'][0]
+                                            if 'physicalLocation' in loc:
+                                                phys_loc = loc['physicalLocation']
+                                                if 'artifactLocation' in phys_loc:
+                                                    artifact = phys_loc['artifactLocation'].get('uri', '')
+                                                else:
+                                                    artifact = ''
+                                                
+                                                if 'region' in phys_loc:
+                                                    region = phys_loc['region']
+                                                    start_line = region.get('startLine', '')
+                                                    start_col = region.get('startColumn', '')
+                                                    location = f"{artifact}:{start_line}:{start_col}"
+                                        
+                                        message = result.get('message', {}).get('text', 'No message')
+                                        
+                                        text_report += f"Issue #{i}:\n"
+                                        text_report += f"  Level: {level}\n"
+                                        text_report += f"  Rule: {rule_id}\n"
+                                        text_report += f"  Location: {location}\n"
+                                        text_report += f"  Message: {message}\n\n"
+                                else:
+                                    text_report += "No issues found.\n"
+                    
+                    text_report += "\n\nRaw SARIF Data:\n"
+                    text_report += "=" * 50 + "\n"
+                    text_report += sarif_content
+                    
+                    return PlainTextResponse(
+                        content=text_report,
+                        headers={"Content-Disposition": f"attachment; filename={os.path.splitext(file.filename)[0]}_analysis.txt"}
+                    )
+                except Exception as e:
+                    return PlainTextResponse(f"Error generating text report: {str(e)}")
             
             pdf_path = os.path.join(temp_dir, "analysis_report.pdf")
             generate_pdf_report(sarif_path, pdf_path, file.filename)
