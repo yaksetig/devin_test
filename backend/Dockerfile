@@ -13,11 +13,13 @@ RUN apt-get update && apt-get install -y \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:/usr/local/bin:${PATH}"
 
-# Install circomspect
-RUN cargo install circomspect && \
-    echo "Circomspect installed at: $(which circomspect)" && \
-    cp /root/.cargo/bin/circomspect /usr/local/bin/ && \
-    chmod +x /usr/local/bin/circomspect
+# Install circomspect directly from GitHub
+RUN git clone https://github.com/trailofbits/circomspect.git /tmp/circomspect && \
+    cd /tmp/circomspect && \
+    cargo build --release && \
+    cp /tmp/circomspect/target/release/circomspect /usr/local/bin/ && \
+    chmod +x /usr/local/bin/circomspect && \
+    circomspect --version
 
 # Set up poetry
 RUN pip install poetry
