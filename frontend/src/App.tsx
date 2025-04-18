@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 
 function App() {
@@ -6,6 +6,9 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [outputFormat, setOutputFormat] = useState<'pdf' | 'txt'>('pdf')
+  useEffect(() => {
+    console.log('Component mounted or updated')
+  }, [])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log('File change event triggered', e.target.files)
@@ -17,8 +20,14 @@ function App() {
         setFile(null)
         return
       }
-      setFile(selectedFile)
-      console.log('File state updated:', selectedFile.name)
+      
+      const newFile = new File([selectedFile], selectedFile.name, {
+        type: selectedFile.type,
+        lastModified: selectedFile.lastModified
+      })
+      
+      setFile(newFile)
+      console.log('File state updated:', newFile.name)
       setError(null)
     }
   }
