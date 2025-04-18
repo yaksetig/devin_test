@@ -14,7 +14,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Install circomspect
-RUN cargo install circomspect
+RUN cargo install circomspect && \
+    echo "Circomspect installed at: $(which circomspect)"
 
 # Set up poetry
 RUN pip install poetry
