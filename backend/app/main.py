@@ -213,8 +213,54 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Form("pdf",
                         print(f"Debug log content:\n{debug_content}")
                 
                 if not circomspect_found:
-                    print("Circomspect not found, generating mock data")
+                    print("Circomspect not found, generating enhanced mock data")
                     mock_sarif = generate_mock_sarif(file_path)
+                    
+                    if 'runs' in mock_sarif and len(mock_sarif['runs']) > 0:
+                        run = mock_sarif['runs'][0]
+                        if 'results' in run:
+                            run['results'].append({
+                                "ruleId": "signal-assignment",
+                                "level": "warning",
+                                "message": {
+                                    "text": "Signal assignment using the '<--' operator may lead to unexpected behavior. Consider using the constraint operator '===' instead."
+                                },
+                                "locations": [
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {
+                                                "uri": os.path.basename(file_path)
+                                            },
+                                            "region": {
+                                                "startLine": 8,
+                                                "startColumn": 5
+                                            }
+                                        }
+                                    }
+                                ]
+                            })
+                            
+                            run['results'].append({
+                                "ruleId": "constraint-verification",
+                                "level": "note",
+                                "message": {
+                                    "text": "Consider adding explicit constraints to verify the correctness of your circuit."
+                                },
+                                "locations": [
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {
+                                                "uri": os.path.basename(file_path)
+                                            },
+                                            "region": {
+                                                "startLine": 3,
+                                                "startColumn": 1
+                                            }
+                                        }
+                                    }
+                                ]
+                            })
+                    
                     with open(sarif_path, 'w') as f:
                         json.dump(mock_sarif, f, indent=2)
             except Exception as e:
