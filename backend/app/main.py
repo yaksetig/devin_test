@@ -37,12 +37,25 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
         sarif_path = os.path.join(temp_dir, "output.sarif")
         
         try:
-            result = subprocess.run(
-                ["circomspect", "--sarif-file", sarif_path, file_path],
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            circomspect_paths = [
+                "circomspect",
+                "/usr/local/bin/circomspect",
+                "/root/.cargo/bin/circomspect"
+            ]
+            
+            for circomspect_path in circomspect_paths:
+                try:
+                    result = subprocess.run(
+                        [circomspect_path, "--sarif-file", sarif_path, file_path],
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    break
+                except FileNotFoundError:
+                    if circomspect_path == circomspect_paths[-1]:
+                        raise
+                    continue
             
             if format.lower() == "txt":
                 try:
