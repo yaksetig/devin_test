@@ -34,6 +34,14 @@ RUN echo 'pragma circom 2.0.0;\n\ntemplate Multiplier() {\n    signal input a;\n
 # Make sure circomspect is available in PATH
 ENV PATH="/root/.cargo/bin:/usr/local/bin:${PATH}"
 
+# Keep the circomspect binary and test file in the final image
+RUN mkdir -p /app/bin && \
+    cp /usr/local/bin/circomspect /app/bin/ && \
+    chmod +x /app/bin/circomspect && \
+    cp /tmp/test_circuit.circom /app/ && \
+    echo "#!/bin/bash\n/app/bin/circomspect \$@" > /usr/local/bin/circomspect-wrapper && \
+    chmod +x /usr/local/bin/circomspect-wrapper
+
 # Set up poetry
 RUN pip install poetry
 
