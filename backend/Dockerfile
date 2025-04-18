@@ -16,7 +16,8 @@ ENV PATH="/root/.cargo/bin:/usr/local/bin:${PATH}"
 # Install circomspect
 RUN cargo install circomspect && \
     echo "Circomspect installed at: $(which circomspect)" && \
-    cp /root/.cargo/bin/circomspect /usr/local/bin/
+    cp /root/.cargo/bin/circomspect /usr/local/bin/ && \
+    chmod +x /usr/local/bin/circomspect
 
 # Set up poetry
 RUN pip install poetry
