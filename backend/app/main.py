@@ -38,10 +38,25 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
         
         try:
             try:
-                print("Cloning and building circomspect from source...")
-                circomspect_repo_dir = os.path.join(temp_dir, "circomspect")
+                print("Starting circomspect analysis...")
                 
-                try:
+                debug_log_path = os.path.join(temp_dir, "debug_log.txt")
+                with open(debug_log_path, 'w') as debug_log:
+                    debug_log.write(f"Starting analysis for file: {file_path}\n")
+                    debug_log.write(f"Temp directory: {temp_dir}\n")
+                    debug_log.write(f"SARIF output path: {sarif_path}\n")
+                    
+                    debug_log.write("\n--- Environment Info ---\n")
+                    try:
+                        env_result = subprocess.run(
+                            ["env"],
+                            capture_output=True,
+                            text=True
+                        )
+                        debug_log.write(f"Environment variables:\n{env_result.stdout}\n")
+                    except Exception as e:
+                        debug_log.write(f"Error getting environment: {str(e)}\n")
+                    
                     circomspect_paths = [
                         "circomspect",
                         "/usr/local/bin/circomspect",
@@ -50,86 +65,149 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
                     
                     circomspect_found = False
                     for circomspect_path in circomspect_paths:
+                        debug_log.write(f"Trying circomspect at {circomspect_path}...\n")
                         try:
-                            print(f"Trying circomspect at {circomspect_path}...")
-                            result = subprocess.run(
-                                [circomspect_path, "--sarif-file", sarif_path, file_path],
+                            which_result = subprocess.run(
+                                ["which", circomspect_path],
                                 capture_output=True,
-                                text=True,
-                                check=True
+                                text=True
                             )
-                            print(f"Circomspect output: {result.stdout}")
-                            circomspect_found = True
-                            break
-                        except FileNotFoundError:
-                            continue
+                            if which_result.returncode == 0:
+                                debug_log.write(f"Found circomspect at: {which_result.stdout.strip()}\n")
+                                
+                                version_result = subprocess.run(
+                                    [circomspect_path, "--version"],
+                                    capture_output=True,
+                                    text=True
+                                )
+                                debug_log.write(f"Version check result: {version_result.stdout}\n")
+                                
+                                debug_log.write(f"Running circomspect on {file_path}...\n")
+                                result = subprocess.run(
+                                    [circomspect_path, "--sarif-file", sarif_path, file_path],
+                                    capture_output=True,
+                                    text=True
+                                )
+                                debug_log.write(f"Circomspect stdout: {result.stdout}\n")
+                                debug_log.write(f"Circomspect stderr: {result.stderr}\n")
+                                debug_log.write(f"Circomspect return code: {result.returncode}\n")
+                                
+                                if result.returncode == 0:
+                                    debug_log.write("Circomspect ran successfully\n")
+                                    circomspect_found = True
+                                    break
+                                else:
+                                    debug_log.write(f"Circomspect failed with return code {result.returncode}\n")
+                            else:
+                                debug_log.write(f"Binary not found at {circomspect_path}\n")
                         except Exception as e:
-                            print(f"Error running circomspect: {str(e)}")
+                            debug_log.write(f"Error running circomspect: {str(e)}\n")
                             continue
                     
                     if not circomspect_found:
-                        print("Cloning circomspect repository...")
-                        clone_result = subprocess.run(
-                            ["git", "clone", "https://github.com/trailofbits/circomspect.git", circomspect_repo_dir],
-                            capture_output=True,
-                            text=True,
-                            check=True
-                        )
-                        print(f"Clone result: {clone_result.stdout}")
+                        debug_log.write("\n--- Building circomspect from source ---\n")
+                        circomspect_repo_dir = os.path.join(temp_dir, "circomspect")
                         
-                        print("Building circomspect...")
-                        build_result = subprocess.run(
-                            ["cargo", "build"],
-                            cwd=circomspect_repo_dir,
-                            capture_output=True,
-                            text=True,
-                            check=True
-                        )
-                        print(f"Build result: {build_result.stdout}")
-                        
-                        circomspect_bin = os.path.join(circomspect_repo_dir, "target", "debug", "circomspect")
-                        
-                        if not os.path.exists(circomspect_bin):
-                            print("Debug build not found, looking for release build...")
+                        try:
+                            debug_log.write("Cloning circomspect repository...\n")
+                            clone_result = subprocess.run(
+                                ["git", "clone", "https://github.com/trailofbits/circomspect.git", circomspect_repo_dir],
+                                capture_output=True,
+                                text=True
+                            )
+                            debug_log.write(f"Clone stdout: {clone_result.stdout}\n")
+                            debug_log.write(f"Clone stderr: {clone_result.stderr}\n")
+                            debug_log.write(f"Clone return code: {clone_result.returncode}\n")
+                            
+                            if clone_result.returncode != 0:
+                                debug_log.write("Failed to clone repository\n")
+                                raise Exception("Failed to clone circomspect repository")
+                            
+                            debug_log.write("Building circomspect...\n")
+                            build_result = subprocess.run(
+                                ["cargo", "build", "--release"],
+                                cwd=circomspect_repo_dir,
+                                capture_output=True,
+                                text=True
+                            )
+                            debug_log.write(f"Build stdout: {build_result.stdout}\n")
+                            debug_log.write(f"Build stderr: {build_result.stderr}\n")
+                            debug_log.write(f"Build return code: {build_result.returncode}\n")
+                            
+                            if build_result.returncode != 0:
+                                debug_log.write("Failed to build circomspect\n")
+                                raise Exception("Failed to build circomspect")
+                            
                             circomspect_bin = os.path.join(circomspect_repo_dir, "target", "release", "circomspect")
-                        
-                        if os.path.exists(circomspect_bin):
-                            print(f"Found circomspect binary at {circomspect_bin}")
-                            os.chmod(circomspect_bin, 0o755)
+                            debug_log.write(f"Checking for binary at {circomspect_bin}\n")
                             
-                            print(f"Running circomspect on {file_path}...")
-                            result = subprocess.run(
-                                [circomspect_bin, "--sarif-file", sarif_path, file_path],
-                                capture_output=True,
-                                text=True,
-                                check=True
-                            )
-                            print(f"Circomspect output: {result.stdout}")
-                            circomspect_found = True
-                        else:
-                            print("Could not find circomspect binary after build")
-                            
-                            print("Installing circomspect using cargo...")
-                            install_result = subprocess.run(
-                                ["cargo", "install", "--path", os.path.join(circomspect_repo_dir, "cli")],
-                                capture_output=True,
-                                text=True,
-                                check=True
-                            )
-                            print(f"Install result: {install_result.stdout}")
-                            
-                            circomspect_path = "/root/.cargo/bin/circomspect"
-                            print(f"Running newly installed circomspect on {file_path}...")
-                            result = subprocess.run(
-                                [circomspect_path, "--sarif-file", sarif_path, file_path],
-                                capture_output=True,
-                                text=True,
-                                check=True
-                            )
-                            print(f"Circomspect output: {result.stdout}")
-                            circomspect_found = True
-                except Exception as e:
-                    print(f"Error building or running circomspect: {str(e)}")
+                            if os.path.exists(circomspect_bin):
+                                debug_log.write(f"Found circomspect binary at {circomspect_bin}\n")
+                                os.chmod(circomspect_bin, 0o755)
+                                
+                                debug_log.write(f"Running circomspect on {file_path}...\n")
+                                result = subprocess.run(
+                                    [circomspect_bin, "--sarif-file", sarif_path, file_path],
+                                    capture_output=True,
+                                    text=True
+                                )
+                                debug_log.write(f"Circomspect stdout: {result.stdout}\n")
+                                debug_log.write(f"Circomspect stderr: {result.stderr}\n")
+                                debug_log.write(f"Circomspect return code: {result.returncode}\n")
+                                
+                                if result.returncode == 0:
+                                    debug_log.write("Circomspect ran successfully\n")
+                                    circomspect_found = True
+                                else:
+                                    debug_log.write(f"Circomspect failed with return code {result.returncode}\n")
+                            else:
+                                debug_log.write("Could not find circomspect binary after build\n")
+                                
+                                debug_log.write("Installing circomspect using cargo...\n")
+                                install_result = subprocess.run(
+                                    ["cargo", "install", "--path", os.path.join(circomspect_repo_dir, "cli")],
+                                    capture_output=True,
+                                    text=True
+                                )
+                                debug_log.write(f"Install stdout: {install_result.stdout}\n")
+                                debug_log.write(f"Install stderr: {install_result.stderr}\n")
+                                debug_log.write(f"Install return code: {install_result.returncode}\n")
+                                
+                                if install_result.returncode != 0:
+                                    debug_log.write("Failed to install circomspect\n")
+                                    raise Exception("Failed to install circomspect")
+                                
+                                circomspect_path = "/root/.cargo/bin/circomspect"
+                                debug_log.write(f"Running newly installed circomspect on {file_path}...\n")
+                                result = subprocess.run(
+                                    [circomspect_path, "--sarif-file", sarif_path, file_path],
+                                    capture_output=True,
+                                    text=True
+                                )
+                                debug_log.write(f"Circomspect stdout: {result.stdout}\n")
+                                debug_log.write(f"Circomspect stderr: {result.stderr}\n")
+                                debug_log.write(f"Circomspect return code: {result.returncode}\n")
+                                
+                                if result.returncode == 0:
+                                    debug_log.write("Circomspect ran successfully\n")
+                                    circomspect_found = True
+                                else:
+                                    debug_log.write(f"Circomspect failed with return code {result.returncode}\n")
+                        except Exception as e:
+                            debug_log.write(f"Error building or running circomspect: {str(e)}\n")
+                    
+                    if os.path.exists(sarif_path):
+                        debug_log.write("\n--- SARIF file created ---\n")
+                        with open(sarif_path, 'r') as sarif_file:
+                            sarif_content = sarif_file.read()
+                            debug_log.write(f"SARIF content:\n{sarif_content}\n")
+                    else:
+                        debug_log.write("\n--- SARIF file was not created ---\n")
+                
+                if format.lower() == "txt":
+                    with open(debug_log_path, 'r') as debug_log:
+                        debug_content = debug_log.read()
+                        print(f"Debug log content:\n{debug_content}")
                 
                 if not circomspect_found:
                     print("Circomspect not found, generating mock data")
