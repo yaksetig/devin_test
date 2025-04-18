@@ -60,7 +60,9 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Form("pdf",
                     circomspect_paths = [
                         "circomspect",
                         "/usr/local/bin/circomspect",
-                        "/root/.cargo/bin/circomspect"
+                        "/root/.cargo/bin/circomspect",
+                        "/app/bin/circomspect",
+                        "/usr/local/bin/circomspect-wrapper"
                     ]
                     
                     circomspect_found = False
