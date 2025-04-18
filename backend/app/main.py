@@ -38,7 +38,7 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
         
         try:
             result = subprocess.run(
-                ["/root/.cargo/bin/circomspect", "--sarif-file", sarif_path, file_path],
+                ["circomspect", "--sarif-file", sarif_path, file_path],
                 capture_output=True,
                 text=True,
                 check=True
