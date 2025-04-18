@@ -244,39 +244,41 @@ def generate_mock_sarif(file_path):
     return mock_sarif
 
 def generate_pdf_report(sarif_path, pdf_path, filename):
-    doc = SimpleDocTemplate(pdf_path, pagesize=letter)
-    styles = getSampleStyleSheet()
-    
-    title_style = ParagraphStyle(
-        'Title',
-        parent=styles['Heading1'],
-        fontSize=16,
-        spaceAfter=12
-    )
-    
-    heading_style = ParagraphStyle(
-        'Heading',
-        parent=styles['Heading2'],
-        fontSize=14,
-        spaceAfter=10
-    )
-    
-    normal_style = styles['Normal']
-    
-    elements = []
-    
-    elements.append(Paragraph(f"Circomspect Analysis Report: {filename}", title_style))
-    elements.append(Spacer(1, 12))
-    
     try:
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+        styles = getSampleStyleSheet()
+        
+        title_style = ParagraphStyle(
+            'Title',
+            parent=styles['Heading1'],
+            fontSize=16,
+            spaceAfter=12
+        )
+        
+        heading_style = ParagraphStyle(
+            'Heading',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=10
+        )
+        
+        normal_style = styles['Normal']
+        
+        elements = []
+        
+        elements.append(Paragraph(f"Circomspect Analysis Report: {filename}", title_style))
+        elements.append(Spacer(1, 12))
+        
         with open(sarif_path, 'r') as f:
-            sarif_data = json.load(f)
+            sarif_content = f.read()
+            sarif_data = json.loads(sarif_content)
         
         if 'runs' in sarif_data:
             for run in sarif_data['runs']:
                 if 'tool' in run:
                     tool_info = run['tool']
-                    elements.append(Paragraph(f"Tool: {tool_info.get('driver', {}).get('name', 'Circomspect')}", heading_style))
+                    tool_name = tool_info.get('driver', {}).get('name', 'Circomspect')
+                    elements.append(Paragraph(f"Tool: {tool_name}", heading_style))
                     elements.append(Spacer(1, 6))
                 
                 if 'results' in run:
@@ -296,10 +298,7 @@ def generate_pdf_report(sarif_path, pdf_path, filename):
                                 loc = result['locations'][0]
                                 if 'physicalLocation' in loc:
                                     phys_loc = loc['physicalLocation']
-                                    if 'artifactLocation' in phys_loc:
-                                        artifact = phys_loc['artifactLocation'].get('uri', '')
-                                    else:
-                                        artifact = ''
+                                    artifact = phys_loc.get('artifactLocation', {}).get('uri', '')
                                     
                                     if 'region' in phys_loc:
                                         region = phys_loc['region']
@@ -325,7 +324,37 @@ def generate_pdf_report(sarif_path, pdf_path, filename):
                         elements.append(table)
                     else:
                         elements.append(Paragraph("No issues found.", normal_style))
+        
+        doc.build(elements)
+        
+        if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) < 100:
+            raise Exception("PDF generation failed or created an empty file")
+            
     except Exception as e:
-        elements.append(Paragraph(f"Error parsing SARIF file: {str(e)}", normal_style))
-    
-    doc.build(elements)
+        print(f"Error generating PDF: {str(e)}")
+        
+        try:
+            doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+            styles = getSampleStyleSheet()
+            elements = []
+            
+            elements.append(Paragraph(f"Circomspect Analysis Report: {filename}", styles['Title']))
+            elements.append(Spacer(1, 12))
+            elements.append(Paragraph("Error generating detailed report.", styles['Normal']))
+            elements.append(Paragraph(f"Error: {str(e)}", styles['Normal']))
+            
+            elements.append(Spacer(1, 12))
+            elements.append(Paragraph("Raw Analysis Data:", styles['Heading2']))
+            
+            try:
+                with open(sarif_path, 'r') as f:
+                    sarif_content = f.read()
+                    elements.append(Paragraph(sarif_content, styles['Code']))
+            except:
+                elements.append(Paragraph("Could not read SARIF data", styles['Normal']))
+                
+            doc.build(elements)
+        except Exception as fallback_error:
+            print(f"Fallback PDF generation also failed: {str(fallback_error)}")
+            with open(pdf_path, 'wb') as f:
+                f.write(b'%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Resources<<>>/Contents 4 0 R/Parent 2 0 R>>endobj 4 0 obj<</Length 21>>stream\nBT /F1 12 Tf 100 700 Td (Error generating report) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\n0000000199 00000 n\ntrailer<</Size 5/Root 1 0 R>>\nstartxref\n269\n%%EOF\n')
