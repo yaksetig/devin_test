@@ -5,6 +5,7 @@ function App() {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [outputFormat, setOutputFormat] = useState<'pdf' | 'txt'>('pdf')
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -35,7 +36,7 @@ function App() {
       formData.append('file', file)
 
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${API_URL}/analyze`, {
+      const response = await fetch(`${API_URL}/analyze?format=${outputFormat}`, {
         method: 'POST',
         body: formData,
       })
@@ -102,6 +103,34 @@ function App() {
                 </div>
               </div>
             )}
+          </div>
+          
+          <div className="mt-4">
+            <p className="text-sm font-medium text-gray-700 mb-2">Output Format:</p>
+            <div className="flex space-x-4">
+              <label className="inline-flex items-center">
+                <input
+                  type="radio"
+                  className="form-radio"
+                  name="outputFormat"
+                  value="pdf"
+                  checked={outputFormat === 'pdf'}
+                  onChange={() => setOutputFormat('pdf')}
+                />
+                <span className="ml-2">PDF</span>
+              </label>
+              <label className="inline-flex items-center">
+                <input
+                  type="radio"
+                  className="form-radio"
+                  name="outputFormat"
+                  value="txt"
+                  checked={outputFormat === 'txt'}
+                  onChange={() => setOutputFormat('txt')}
+                />
+                <span className="ml-2">Text (for debugging)</span>
+              </label>
+            </div>
           </div>
           
           {error && (
