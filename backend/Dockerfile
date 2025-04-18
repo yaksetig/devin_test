@@ -21,9 +21,18 @@ RUN git clone https://github.com/trailofbits/circomspect.git /tmp/circomspect &&
     chmod +x /usr/local/bin/circomspect && \
     circomspect --version || echo "Circomspect installation verification failed, but continuing"
 
+# Install circomspect using cargo install
+RUN cd /tmp/circomspect && \
+    cargo install --path cli && \
+    which circomspect && \
+    circomspect --version || echo "Circomspect cargo installation verification failed, but continuing"
+
 # Create a test circom file to verify circomspect works
 RUN echo 'pragma circom 2.0.0;\n\ntemplate Multiplier() {\n    signal input a;\n    signal input b;\n    signal output c;\n    \n    c <== a * b;\n}\n\ncomponent main = Multiplier();' > /tmp/test_circuit.circom && \
     circomspect /tmp/test_circuit.circom || echo "Circomspect test run failed, but continuing"
+
+# Make sure circomspect is available in PATH
+ENV PATH="/root/.cargo/bin:/usr/local/bin:${PATH}"
 
 # Set up poetry
 RUN pip install poetry
