@@ -152,21 +152,32 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
                     text_report += "=" * 50 + "\n"
                     text_report += sarif_content
                     
-                    return PlainTextResponse(
-                        content=text_report,
-                        headers={"Content-Disposition": f"attachment; filename={os.path.splitext(file.filename)[0]}_analysis.txt"}
+                    text_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}_analysis.txt")
+                    with open(text_path, 'w') as f:
+                        f.write(text_report)
+                    
+                    return FileResponse(
+                        path=text_path,
+                        media_type="text/plain",
+                        filename=f"{os.path.splitext(file.filename)[0]}_analysis.txt"
                     )
                 except Exception as e:
-                    return PlainTextResponse(f"Error generating text report: {str(e)}")
+                    print(f"Error generating text report: {str(e)}")
+                    return PlainTextResponse(
+                        content=f"Error generating text report: {str(e)}",
+                        headers={"Content-Disposition": f"attachment; filename=error_report.txt"}
+                    )
             
-            pdf_path = os.path.join(temp_dir, "analysis_report.pdf")
+            pdf_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}_analysis.pdf")
             generate_pdf_report(sarif_path, pdf_path, file.filename)
             
-            if not os.path.exists(pdf_path):
-                return {"error": "Failed to generate PDF report"}
+            if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) < 100:
+                print("PDF generation failed or created an empty file")
+                with open(pdf_path, 'wb') as f:
+                    f.write(b'%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Resources<<>>/Contents 4 0 R/Parent 2 0 R>>endobj 4 0 obj<</Length 21>>stream\nBT /F1 12 Tf 100 700 Td (Error generating report) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\n0000000199 00000 n\ntrailer<</Size 5/Root 1 0 R>>\nstartxref\n269\n%%EOF\n')
             
             return FileResponse(
-                path=pdf_path, 
+                path=pdf_path,
                 media_type="application/pdf",
                 filename=f"{os.path.splitext(file.filename)[0]}_analysis.pdf"
             )
