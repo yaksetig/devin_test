@@ -204,10 +204,31 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
                     else:
                         debug_log.write("\n--- SARIF file was not created ---\n")
                 
-                if format.lower() == "txt":
+                debug_content = ""
+                if os.path.exists(debug_log_path):
                     with open(debug_log_path, 'r') as debug_log:
                         debug_content = debug_log.read()
                         print(f"Debug log content:\n{debug_content}")
+                
+                if format.lower() == "txt":
+                    text_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}_analysis.txt")
+                    with open(text_path, 'w') as f:
+                        f.write(f"Circomspect Analysis Debug Log for {file.filename}\n")
+                        f.write("=" * 50 + "\n\n")
+                        f.write(debug_content)
+                        
+                        if os.path.exists(sarif_path):
+                            f.write("\n\nSARIF Content:\n")
+                            f.write("=" * 50 + "\n")
+                            with open(sarif_path, 'r') as sarif_file:
+                                sarif_content = sarif_file.read()
+                                f.write(sarif_content)
+                    
+                    return FileResponse(
+                        path=text_path,
+                        media_type="text/plain",
+                        filename=f"{os.path.splitext(file.filename)[0]}_analysis.txt"
+                    )
                 
                 if not circomspect_found:
                     print("Circomspect not found, generating mock data")
