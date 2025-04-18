@@ -38,34 +38,73 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
         
         try:
             try:
-                circomspect_paths = [
-                    "circomspect",
-                    "/usr/local/bin/circomspect",
-                    "/root/.cargo/bin/circomspect"
-                ]
+                print("Cloning and building circomspect from source...")
+                circomspect_repo_dir = os.path.join(temp_dir, "circomspect")
                 
-                circomspect_found = False
-                for circomspect_path in circomspect_paths:
-                    try:
-                        result = subprocess.run(
-                            [circomspect_path, "--sarif-file", sarif_path, file_path],
-                            capture_output=True,
-                            text=True,
-                            check=True
-                        )
-                        circomspect_found = True
-                        break
-                    except FileNotFoundError:
-                        continue
-                    except Exception as e:
-                        print(f"Error running circomspect: {str(e)}")
-                        break
-                
-                if not circomspect_found:
-                    print("Circomspect not found, generating mock data")
-                    mock_sarif = generate_mock_sarif(file_path)
-                    with open(sarif_path, 'w') as f:
-                        json.dump(mock_sarif, f, indent=2)
+                try:
+                    clone_result = subprocess.run(
+                        ["git", "clone", "https://github.com/trailofbits/circomspect.git", circomspect_repo_dir],
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    print(f"Clone result: {clone_result.stdout}")
+                    
+                    build_result = subprocess.run(
+                        ["cargo", "build", "--release"],
+                        cwd=circomspect_repo_dir,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    print(f"Build result: {build_result.stdout}")
+                    
+                    circomspect_bin = os.path.join(circomspect_repo_dir, "target", "release", "circomspect")
+                    
+                    os.chmod(circomspect_bin, 0o755)
+                    
+                    print(f"Running circomspect on {file_path}...")
+                    result = subprocess.run(
+                        [circomspect_bin, "--sarif-file", sarif_path, file_path],
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    print(f"Circomspect output: {result.stdout}")
+                    
+                except Exception as e:
+                    print(f"Error building or running circomspect: {str(e)}")
+                    
+                    circomspect_paths = [
+                        "circomspect",
+                        "/usr/local/bin/circomspect",
+                        "/root/.cargo/bin/circomspect"
+                    ]
+                    
+                    circomspect_found = False
+                    for circomspect_path in circomspect_paths:
+                        try:
+                            print(f"Trying pre-installed circomspect at {circomspect_path}...")
+                            result = subprocess.run(
+                                [circomspect_path, "--sarif-file", sarif_path, file_path],
+                                capture_output=True,
+                                text=True,
+                                check=True
+                            )
+                            print(f"Circomspect output: {result.stdout}")
+                            circomspect_found = True
+                            break
+                        except FileNotFoundError:
+                            continue
+                        except Exception as e:
+                            print(f"Error running circomspect: {str(e)}")
+                            break
+                    
+                    if not circomspect_found:
+                        print("Circomspect not found, generating mock data")
+                        mock_sarif = generate_mock_sarif(file_path)
+                        with open(sarif_path, 'w') as f:
+                            json.dump(mock_sarif, f, indent=2)
             except Exception as e:
                 print(f"Error running analysis: {str(e)}")
                 mock_sarif = generate_mock_sarif(file_path)
