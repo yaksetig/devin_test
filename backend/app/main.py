@@ -210,26 +210,6 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
                         debug_content = debug_log.read()
                         print(f"Debug log content:\n{debug_content}")
                 
-                if format.lower() == "txt":
-                    text_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}_analysis.txt")
-                    with open(text_path, 'w') as f:
-                        f.write(f"Circomspect Analysis Debug Log for {file.filename}\n")
-                        f.write("=" * 50 + "\n\n")
-                        f.write(debug_content)
-                        
-                        if os.path.exists(sarif_path):
-                            f.write("\n\nSARIF Content:\n")
-                            f.write("=" * 50 + "\n")
-                            with open(sarif_path, 'r') as sarif_file:
-                                sarif_content = sarif_file.read()
-                                f.write(sarif_content)
-                    
-                    return FileResponse(
-                        path=text_path,
-                        media_type="text/plain",
-                        filename=f"{os.path.splitext(file.filename)[0]}_analysis.txt"
-                    )
-                
                 if not circomspect_found:
                     print("Circomspect not found, generating mock data")
                     mock_sarif = generate_mock_sarif(file_path)
@@ -243,61 +223,76 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
             
             if format.lower() == "txt":
                 try:
-                    with open(sarif_path, 'r') as f:
-                        sarif_content = f.read()
-                    
-                    text_report = f"Circomspect Analysis Report for {file.filename}\n"
-                    text_report += "=" * 50 + "\n\n"
-                    
-                    sarif_data = json.loads(sarif_content)
-                    if 'runs' in sarif_data:
-                        for run in sarif_data['runs']:
-                            if 'tool' in run:
-                                tool_info = run['tool']
-                                text_report += f"Tool: {tool_info.get('driver', {}).get('name', 'Circomspect')}\n\n"
-                            
-                            if 'results' in run:
-                                results = run['results']
-                                text_report += f"Found {len(results)} issues:\n\n"
-                                
-                                if results:
-                                    for i, result in enumerate(results, 1):
-                                        level = result.get('level', 'warning')
-                                        rule_id = result.get('ruleId', 'unknown')
-                                        
-                                        location = "Unknown"
-                                        if 'locations' in result and result['locations']:
-                                            loc = result['locations'][0]
-                                            if 'physicalLocation' in loc:
-                                                phys_loc = loc['physicalLocation']
-                                                if 'artifactLocation' in phys_loc:
-                                                    artifact = phys_loc['artifactLocation'].get('uri', '')
-                                                else:
-                                                    artifact = ''
-                                                
-                                                if 'region' in phys_loc:
-                                                    region = phys_loc['region']
-                                                    start_line = region.get('startLine', '')
-                                                    start_col = region.get('startColumn', '')
-                                                    location = f"{artifact}:{start_line}:{start_col}"
-                                        
-                                        message = result.get('message', {}).get('text', 'No message')
-                                        
-                                        text_report += f"Issue #{i}:\n"
-                                        text_report += f"  Level: {level}\n"
-                                        text_report += f"  Rule: {rule_id}\n"
-                                        text_report += f"  Location: {location}\n"
-                                        text_report += f"  Message: {message}\n\n"
-                                else:
-                                    text_report += "No issues found.\n"
-                    
-                    text_report += "\n\nRaw SARIF Data:\n"
-                    text_report += "=" * 50 + "\n"
-                    text_report += sarif_content
-                    
                     text_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}_analysis.txt")
                     with open(text_path, 'w') as f:
-                        f.write(text_report)
+                        f.write(f"Circomspect Analysis Report for {file.filename}\n")
+                        f.write("=" * 50 + "\n\n")
+                        
+                        debug_log_path = os.path.join(temp_dir, "debug_log.txt")
+                        if os.path.exists(debug_log_path):
+                            with open(debug_log_path, 'r') as debug_log:
+                                debug_content = debug_log.read()
+                                f.write("Debug Log:\n")
+                                f.write("-" * 40 + "\n")
+                                f.write(debug_content)
+                                f.write("\n\n")
+                        
+                        if os.path.exists(sarif_path):
+                            try:
+                                with open(sarif_path, 'r') as sarif_file:
+                                    sarif_content = sarif_file.read()
+                                    sarif_data = json.loads(sarif_content)
+                                    
+                                    f.write("Analysis Results:\n")
+                                    f.write("-" * 40 + "\n\n")
+                                    
+                                    if 'runs' in sarif_data:
+                                        for run in sarif_data['runs']:
+                                            if 'tool' in run:
+                                                tool_info = run['tool']
+                                                f.write(f"Tool: {tool_info.get('driver', {}).get('name', 'Circomspect')}\n\n")
+                                            
+                                            if 'results' in run:
+                                                results = run['results']
+                                                f.write(f"Found {len(results)} issues:\n\n")
+                                                
+                                                if results:
+                                                    for i, result in enumerate(results, 1):
+                                                        level = result.get('level', 'warning')
+                                                        rule_id = result.get('ruleId', 'unknown')
+                                                        
+                                                        location = "Unknown"
+                                                        if 'locations' in result and result['locations']:
+                                                            loc = result['locations'][0]
+                                                            if 'physicalLocation' in loc:
+                                                                phys_loc = loc['physicalLocation']
+                                                                artifact = phys_loc.get('artifactLocation', {}).get('uri', '')
+                                                                
+                                                                if 'region' in phys_loc:
+                                                                    region = phys_loc['region']
+                                                                    start_line = region.get('startLine', '')
+                                                                    start_col = region.get('startColumn', '')
+                                                                    location = f"{artifact}:{start_line}:{start_col}"
+                                                        
+                                                        message = result.get('message', {}).get('text', 'No message')
+                                                        
+                                                        f.write(f"Issue #{i}:\n")
+                                                        f.write(f"  Level: {level}\n")
+                                                        f.write(f"  Rule: {rule_id}\n")
+                                                        f.write(f"  Location: {location}\n")
+                                                        f.write(f"  Message: {message}\n\n")
+                                                else:
+                                                    f.write("No issues found.\n")
+                                    
+                                    f.write("\n\nRaw SARIF Data:\n")
+                                    f.write("-" * 40 + "\n")
+                                    f.write(sarif_content)
+                            except Exception as e:
+                                f.write(f"\nError parsing SARIF data: {str(e)}\n")
+                                if os.path.exists(sarif_path):
+                                    with open(sarif_path, 'r') as raw_sarif:
+                                        f.write("\nRaw SARIF content:\n")
+                                        f.write(raw_sarif.read())
                     
                     return FileResponse(
                         path=text_path,
@@ -418,66 +413,107 @@ def generate_pdf_report(sarif_path, pdf_path, filename):
         
         normal_style = styles['Normal']
         
+        code_style = ParagraphStyle(
+            'Code',
+            parent=styles['Normal'],
+            fontName='Courier',
+            fontSize=8,
+            leading=10,
+            leftIndent=20,
+            rightIndent=20
+        )
+        
         elements = []
         
         elements.append(Paragraph(f"Circomspect Analysis Report: {filename}", title_style))
         elements.append(Spacer(1, 12))
         
-        with open(sarif_path, 'r') as f:
-            sarif_content = f.read()
-            sarif_data = json.loads(sarif_content)
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        elements.append(Paragraph(f"Generated on: {timestamp}", normal_style))
+        elements.append(Spacer(1, 12))
         
-        if 'runs' in sarif_data:
-            for run in sarif_data['runs']:
-                if 'tool' in run:
-                    tool_info = run['tool']
-                    tool_name = tool_info.get('driver', {}).get('name', 'Circomspect')
-                    elements.append(Paragraph(f"Tool: {tool_name}", heading_style))
-                    elements.append(Spacer(1, 6))
-                
-                if 'results' in run:
-                    results = run['results']
-                    elements.append(Paragraph(f"Found {len(results)} issues:", heading_style))
-                    elements.append(Spacer(1, 6))
+        try:
+            with open(sarif_path, 'r') as f:
+                sarif_content = f.read()
+                sarif_data = json.loads(sarif_content)
+            
+            if 'runs' in sarif_data:
+                for run in sarif_data['runs']:
+                    if 'tool' in run:
+                        tool_info = run['tool']
+                        tool_name = tool_info.get('driver', {}).get('name', 'Circomspect')
+                        tool_version = tool_info.get('driver', {}).get('version', 'Unknown')
+                        elements.append(Paragraph(f"Tool: {tool_name} (Version: {tool_version})", heading_style))
+                        elements.append(Spacer(1, 6))
                     
-                    if results:
-                        data = [["Level", "Rule", "Location", "Message"]]
+                    if 'results' in run:
+                        results = run['results']
+                        elements.append(Paragraph(f"Found {len(results)} issues:", heading_style))
+                        elements.append(Spacer(1, 6))
                         
-                        for result in results:
-                            level = result.get('level', 'warning')
-                            rule_id = result.get('ruleId', 'unknown')
+                        if results:
+                            data = [["Level", "Rule", "Location", "Message"]]
                             
-                            location = "Unknown"
-                            if 'locations' in result and result['locations']:
-                                loc = result['locations'][0]
-                                if 'physicalLocation' in loc:
-                                    phys_loc = loc['physicalLocation']
-                                    artifact = phys_loc.get('artifactLocation', {}).get('uri', '')
-                                    
-                                    if 'region' in phys_loc:
-                                        region = phys_loc['region']
-                                        start_line = region.get('startLine', '')
-                                        start_col = region.get('startColumn', '')
-                                        location = f"{artifact}:{start_line}:{start_col}"
+                            for result in results:
+                                level = result.get('level', 'warning')
+                                rule_id = result.get('ruleId', 'unknown')
+                                
+                                location = "Unknown"
+                                if 'locations' in result and result['locations']:
+                                    loc = result['locations'][0]
+                                    if 'physicalLocation' in loc:
+                                        phys_loc = loc['physicalLocation']
+                                        artifact = phys_loc.get('artifactLocation', {}).get('uri', '')
+                                        
+                                        if 'region' in phys_loc:
+                                            region = phys_loc['region']
+                                            start_line = region.get('startLine', '')
+                                            start_col = region.get('startColumn', '')
+                                            location = f"{artifact}:{start_line}:{start_col}"
+                                
+                                message = result.get('message', {}).get('text', 'No message')
+                                
+                                if len(message) > 100:
+                                    message = message[:97] + "..."
+                                
+                                data.append([level, rule_id, location, message])
                             
-                            message = result.get('message', {}).get('text', 'No message')
+                            table = Table(data, colWidths=[60, 100, 100, 240])
+                            table.setStyle(TableStyle([
+                                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                            ]))
                             
-                            data.append([level, rule_id, location, message])
-                        
-                        table = Table(data, colWidths=[60, 100, 100, 240])
-                        table.setStyle(TableStyle([
-                            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                        ]))
-                        
-                        elements.append(table)
-                    else:
-                        elements.append(Paragraph("No issues found.", normal_style))
+                            elements.append(table)
+                            
+                            elements.append(Spacer(1, 12))
+                            elements.append(Paragraph("Detailed Issue Descriptions:", heading_style))
+                            elements.append(Spacer(1, 6))
+                            
+                            for i, result in enumerate(results, 1):
+                                level = result.get('level', 'warning')
+                                rule_id = result.get('ruleId', 'unknown')
+                                message = result.get('message', {}).get('text', 'No message')
+                                
+                                elements.append(Paragraph(f"Issue #{i}: {rule_id} ({level})", ParagraphStyle(
+                                    'IssueTitle',
+                                    parent=styles['Heading3'],
+                                    fontSize=12,
+                                    spaceAfter=6
+                                )))
+                                elements.append(Paragraph(message, normal_style))
+                                elements.append(Spacer(1, 6))
+                        else:
+                            elements.append(Paragraph("No issues found.", normal_style))
+        except Exception as parse_error:
+            elements.append(Paragraph(f"Error parsing SARIF data: {str(parse_error)}", normal_style))
+            elements.append(Spacer(1, 12))
         
         doc.build(elements)
         
@@ -503,12 +539,54 @@ def generate_pdf_report(sarif_path, pdf_path, filename):
             try:
                 with open(sarif_path, 'r') as f:
                     sarif_content = f.read()
-                    elements.append(Paragraph(sarif_content, styles['Code']))
-            except:
-                elements.append(Paragraph("Could not read SARIF data", styles['Normal']))
+                    chunks = [sarif_content[i:i+1000] for i in range(0, len(sarif_content), 1000)]
+                    for chunk in chunks:
+                        elements.append(Paragraph(chunk.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'), 
+                                                 ParagraphStyle('Code', 
+                                                               parent=styles['Normal'],
+                                                               fontName='Courier',
+                                                               fontSize=8)))
+                        elements.append(Spacer(1, 2))
+            except Exception as read_error:
+                elements.append(Paragraph(f"Could not read SARIF data: {str(read_error)}", styles['Normal']))
                 
             doc.build(elements)
         except Exception as fallback_error:
             print(f"Fallback PDF generation also failed: {str(fallback_error)}")
             with open(pdf_path, 'wb') as f:
-                f.write(b'%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Resources<<>>/Contents 4 0 R/Parent 2 0 R>>endobj 4 0 obj<</Length 21>>stream\nBT /F1 12 Tf 100 700 Td (Error generating report) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\n0000000199 00000 n\ntrailer<</Size 5/Root 1 0 R>>\nstartxref\n269\n%%EOF\n')
+                f.write(b'''%PDF-1.4
+1 0 obj
+<</Type/Catalog/Pages 2 0 R>>
+endobj
+2 0 obj
+<</Type/Pages/Kids[3 0 R]/Count 1>>
+endobj
+3 0 obj
+<</Type/Page/MediaBox[0 0 612 792]/Resources<</Font<</F1<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>>>>>
+/Contents 4 0 R/Parent 2 0 R>>
+endobj
+4 0 obj
+<</Length 131>>
+stream
+BT
+/F1 12 Tf
+100 700 Td
+(Circomspect Analysis Report) Tj
+0 -20 Td
+(Error: PDF generation failed. Please try text format for debugging.) Tj
+ET
+endstream
+endobj
+xref
+0 5
+0000000000 65535 f
+0000000010 00000 n
+0000000053 00000 n
+0000000102 00000 n
+0000000245 00000 n
+trailer
+<</Size 5/Root 1 0 R>>
+startxref
+425
+%%EOF
+''')
