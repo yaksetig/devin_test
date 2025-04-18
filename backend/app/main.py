@@ -221,8 +221,11 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
                 with open(sarif_path, 'w') as f:
                     json.dump(mock_sarif, f, indent=2)
             
-            if format.lower() == "txt":
+            print(f"Format parameter received: '{format}'")
+            
+            if format and format.lower() == "txt":
                 try:
+                    print("Generating text report...")
                     text_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}_analysis.txt")
                     with open(text_path, 'w') as f:
                         f.write(f"Circomspect Analysis Report for {file.filename}\n")
@@ -294,6 +297,7 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
                                         f.write("\nRaw SARIF content:\n")
                                         f.write(raw_sarif.read())
                     
+                    print(f"Text report generated at: {text_path}")
                     return FileResponse(
                         path=text_path,
                         media_type="text/plain",
@@ -306,14 +310,51 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Query("pdf"
                         headers={"Content-Disposition": f"attachment; filename=error_report.txt"}
                     )
             
+            print("Generating PDF report...")
             pdf_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}_analysis.pdf")
             generate_pdf_report(sarif_path, pdf_path, file.filename)
             
             if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) < 100:
                 print("PDF generation failed or created an empty file")
                 with open(pdf_path, 'wb') as f:
-                    f.write(b'%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Resources<<>>/Contents 4 0 R/Parent 2 0 R>>endobj 4 0 obj<</Length 21>>stream\nBT /F1 12 Tf 100 700 Td (Error generating report) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\n0000000199 00000 n\ntrailer<</Size 5/Root 1 0 R>>\nstartxref\n269\n%%EOF\n')
+                    f.write(b'''%PDF-1.4
+1 0 obj
+<</Type/Catalog/Pages 2 0 R>>
+endobj
+2 0 obj
+<</Type/Pages/Kids[3 0 R]/Count 1>>
+endobj
+3 0 obj
+<</Type/Page/MediaBox[0 0 612 792]/Resources<</Font<</F1<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>>>>>
+/Contents 4 0 R/Parent 2 0 R>>
+endobj
+4 0 obj
+<</Length 131>>
+stream
+BT
+/F1 12 Tf
+100 700 Td
+(Circomspect Analysis Report) Tj
+0 -20 Td
+(Error: PDF generation failed. Please try text format for debugging.) Tj
+ET
+endstream
+endobj
+xref
+0 5
+0000000000 65535 f
+0000000010 00000 n
+0000000053 00000 n
+0000000102 00000 n
+0000000245 00000 n
+trailer
+<</Size 5/Root 1 0 R>>
+startxref
+425
+%%EOF
+''')
             
+            print(f"PDF report generated at: {pdf_path}")
             return FileResponse(
                 path=pdf_path,
                 media_type="application/pdf",
