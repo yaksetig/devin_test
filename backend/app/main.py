@@ -305,8 +305,11 @@ async def analyze_circom(file: UploadFile = File(...), format: str = Form("pdf",
                     )
                 except Exception as e:
                     print(f"Error generating text report: {str(e)}")
+                    error_text = f"Error generating text report: {str(e)}"
+                    print(error_text)
                     return PlainTextResponse(
-                        content=f"Error generating text report: {str(e)}",
+                        content=error_text,
+                        media_type="text/plain",
                         headers={"Content-Disposition": f"attachment; filename=error_report.txt"}
                     )
             
